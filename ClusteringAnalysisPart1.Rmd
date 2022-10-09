@@ -1,0 +1,279 @@
+---
+title: "Haystack Cluster Analysis Notebook Part 1"
+output: html_notebook
+---
+# Cluster Analysis - Haystack Data
+The notebook uses clean, processes data from Step 3 - Data Augmentation Python
+notebook
+## Part 1 uses Numeric Data Types (see part 2 for mixed data types)
+** Load Key Libraries **
+
+```{r}
+library(magrittr)
+library(HDclassif)
+library(psych)
+library(cluster)
+library(ggplot2)
+library(tidyverse)
+library(FactoMineR)
+options(scipen=999)
+```
+### Load data
+
+```{r}
+zdata <- read_csv("zillow_schools_tax_dataV2.csv", col_names = TRUE)
+colnames(zdata) 
+```
+
+### Create first data frame that uses all numeric variables including dummy variables
+
+```{r}
+dfz <- zdata%>%select(., rentZestimate,zestimate,
+         price_y, PCT_CHG, bathrooms, bedrooms,
+         yearBuilt,livingArea,Price_SqFt,
+         cap_rate, Tot_Appl,Tot_Comm_Feat,
+         Page_Views, Sch_Rat_Avg, Sch_Dist_Avg,
+         sch_cnt, Individuals_taxed, 
+         Income_per_return, Cap_gain, Pension,
+         UE_claims, Social_security, SB_income,
+         Student_loan_ded, RE_taxes, PP_taxes,
+         Child_credit, Earned_Inc_credit,
+         violent_crime_total_rate, property_crime_total_rate,
+         other_crime_total_rate, Prop_Cond_Grp_New, 
+         Prop_Cond_Grp_Remodeled, Two_Car_Garage_1,
+         HasPool_1, HasHardwood_1)
+
+#summary(dfz)
+```
+
+### Prior to PCA we convert dummy variables to logical.
+
+```{r}
+dfz$Prop_Cond_Grp_New <- as.logical(dfz$Prop_Cond_Grp_New)
+dfz$Prop_Cond_Grp_Remodeled <- as.logical(dfz$Prop_Cond_Grp_Remodeled)
+dfz$Two_Car_Garage_1 <- as.logical(dfz$Two_Car_Garage_1)
+dfz$HasPool_1 <- as.logical(dfz$HasPool_1) 
+dfz$HasHardwood_1 <- as.logical(dfz$HasHardwood_1) 
+```
+
+### Creating second data frame for FAMD.
+Note: Prior to FAMD we convert dummy variables to categorical/factor.
+
+```{r}
+dfz_FAMD<-dfz
+dfz_FAMD$Prop_Cond_Grp_New <- as.factor(dfz_FAMD$Prop_Cond_Grp_New)
+dfz_FAMD$Prop_Cond_Grp_Remodeled <- as.factor(dfz_FAMD$Prop_Cond_Grp_Remodeled)
+dfz_FAMD$Two_Car_Garage_1 <- as.factor(dfz_FAMD$Two_Car_Garage_1)
+dfz_FAMD$HasPool_1 <- as.factor(dfz_FAMD$HasPool_1)
+dfz_FAMD$HasHardwood_1 <- as.factor(dfz_FAMD$HasHardwood_1)
+```
+
+### Create third data frame that uses all numeric variables except dummy variables
+```{r}
+dfz_numeric <- zdata%>%select(., rentZestimate,zestimate,
+                      price_y, PCT_CHG, bathrooms, bedrooms,
+                      yearBuilt,livingArea,Price_SqFt,
+                      cap_rate, Tot_Appl,Tot_Comm_Feat,
+                      Page_Views, Sch_Rat_Avg, Sch_Dist_Avg,
+                      sch_cnt, Individuals_taxed, 
+                      Income_per_return, Cap_gain, Pension,
+                      UE_claims, Social_security, SB_income,
+                      Student_loan_ded, RE_taxes, PP_taxes,
+                      Child_credit, Earned_Inc_credit,
+                      violent_crime_total_rate, property_crime_total_rate,
+                      other_crime_total_rate)
+
+#summary(dfz2)
+```
+
+## PCA Function 
+### Function that can conduct PCA using prcomp or FAMD. Note that FAMD is only used with categorical data (dfz_dummy)
+
+```{r}
+run_pca <- function(data_frame, pca_type, components) {
+  
+  if (pca_type == "FAMD") {
+    res <- FAMD(data_frame, ncp = components)
+    cluster_input <-res$ind$coord
+    } else {
+      pc <- prcomp(data_frame, center = TRUE, scale. = TRUE)
+      cluster_input <- pc$x
+      #calculate total variance explained by each principal component
+      var_explained = pc$sdev^2 / sum(pc$sdev^2)
+      #create scree plot
+      qp <- qplot(c(1:components), var_explained) + geom_line() + 
+        xlab("Principal Component") + ylab("Variance Explained") +
+        ggtitle("Scree Plot") + ylim(0, 1)
+}
+  
+  return(cluster_input)
+}
+
+```
+
+## Number of Clusters Function
+### Using NbClust we will determine how many clusters are needed given transformed data as input (note: the input data frame should be PCA components or FAMD coordinates)
+```{r}
+fun_nc <- function(data_frame, diss_dist, min_clust, max_clust, clus_method) {
+  numComplete <- NbClust::NbClust(
+    data = data_frame, # this is principal components
+    distance = diss_dist, # dissimarlity distance ("euclidean", "maximum", 
+    #"manhattan", "canberra", "binary", or "minkowski")
+    min.nc = min_clust,
+    max.nc = max_clust,
+    method = clus_method, #"ward.D", "ward.D2", "single", "complete", 
+    #"average", "mcquitty", "median", "centroid", "kmeans".
+    index = "all")
+  out_best <- numComplete$Best.nc
+  return(out_best)
+}
+```
+
+
+### Run an example of cluster analysis using PCA
+### Step1: PCA
+```{r}
+#run_pca <- function(data_frame, pca_type, components)
+dfl_pca <- run_pca(dfz, "PCA")
+dfn_pca <- run_pca(dfz_numeric, "PCA")
+```
+
+### Step 2: Determine the number of clusters on dfl_pca
+
+We automate the evaluation of various distances and method combination using a loop
+distance_list <- list("minkowski","maximum","canberra")
+method_list <- list("ward.D", "complete", "average", "median", "centroid")
+
+
+```{r}
+meth_list <- list("ward.D", "centroid","median")#, "average", "median", "centroid")
+dist_list <- list("minkowski","maximum")#,"canberra")
+bclist <- list()
+# loop 
+for (m in meth_list) {
+  for (d in dist_list){
+    best_cluster <- fun_nc(dfl_pca, d, 2, 5, m)
+    #bclist  <- c(bclist, best_cluster)
+    bclist[[length(bclist) + 1]] <- best_cluster
+  }
+}
+```
+
+
+Evaluate number  of clusters and value index
+```{r}
+#use the list to inspect results
+bclist[1]
+```
+
+## Conclusion: We will use 3 cluster approach
+
+### Step 3: Setting up the Hierarchical Clustering Aproach
+#### We define a gobal function that can output clusters using various distances, methods
+```{r}
+
+fun_clust <- function(data_frame, distance, agglo_method, clusters) {
+  # use a distance metric such as "euclidean", "maximum", 
+  # "canberra", or "minkowski"
+  fdistance <- dist(data_frame, method=distance) 
+  # The agglomeration method: ward.D", "ward.D2", 
+  # "median" (= WPGMC) or "centroid" (= UPGMC).
+  hc_complete <- hclust(fdistance, method = agglo_method)
+  # Plotting a dendogram
+  dend_complete <- as.dendrogram(hc_complete)
+  dend1 <- dendextend::color_branches(dend_complete, k = 3)
+  plot(dend1, main = "Complete-Linkage")
+  
+  clusters <- cutree(hc_complete, clusters)
+  cluster_dist <- table(clusters)
+  
+  return(clusters)
+}
+```
+
+Step 4: Execute the cluserting using dfl_pca
+```{r}
+#fun_clust <- function(data_frame, distance, agglo_method, clusters)
+pca_max_ward_c <- fun_clust(dfl_pca, "maximum", "ward.D", 4)
+```
+
+Evaluate Clusters
+```{r}
+table(pca_max_ward_c)
+```
+```{r}
+tmp_data <- zdata
+tmp_data$cluster <-pca_max_ward_c
+tmp_data$cluster <- as.factor(tmp_data$cluster)
+p <- ggplot(tmp_data, aes(x=cluster, y=rentZestimate)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=Sch_Rat_Avg)) + 
+  geom_boxplot()
+q
+p <- ggplot(tmp_data, aes(x=cluster, y=Income_per_return)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=violent_crime_total_rate)) + 
+  geom_boxplot()
+q
+
+```
+
+### Step 5: Save the data to a file for exploratory analysis
+```{r}
+tmp_data$ClusterCategory <- ifelse(tmp_data$cluster == 1, "Cluster 1",
+                              ifelse(tmp_data$cluster == 2, "Cluster 2",
+                                     ifelse(tmp_data$cluster == 3, "Cluster 3",
+                                            ifelse(tmp_data$cluster == 4, "Cluster 4",
+                                     "Cluster 5"))))
+
+write.csv(tmp_data,"cluster_output3.csv", row.names = FALSE)
+```
+
+Remove the temporary dataset
+```{r}
+rm(tmp_data)
+```
+
+
+### Extra evaluation using Random Forest and PAM
+
+```{r}
+rf <- randomForest::randomForest(x = dfl_pca, ntree = 2000, proximity = T)
+
+rf
+```
+
+
+```{r}
+dim(rf$proximity)
+rf$proximity[1:5, 1:5]
+randomForest::importance(rf)
+```
+
+
+```{r}
+set.seed(1776)
+rf_dist <- sqrt(1- rf$proximity)
+pam_rf <- cluster::pam(rf_dist, k = 3)
+table(pam_rf$clustering)
+```
+```{r}
+tmp_data <- zdata
+tmp_data$cluster <-pam_rf$clustering
+tmp_data$cluster <- as.factor(tmp_data$cluster)
+p <- ggplot(tmp_data, aes(x=cluster, y=livingArea)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=Sch_Rat_Avg)) + 
+  geom_boxplot()
+q
+p <- ggplot(tmp_data, aes(x=cluster, y=Income_per_return)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=violent_crime_total_rate)) + 
+  geom_boxplot()
+q
+
+```

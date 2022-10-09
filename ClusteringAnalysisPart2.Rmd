@@ -1,0 +1,126 @@
+---
+title: "Haystack Cluster Analysis Notebook Part 2"
+output: html_notebook
+---
+# Cluster Analysis - Haystack Data
+The notebook uses clean, processes data from Step 3 - Data Augmentation Python
+notebook
+** Load Key Libraries **
+
+```{r}
+library(magrittr)
+library(HDclassif)
+library(psych)
+library(cluster)
+library(ggplot2)
+library(tidyverse)
+library(FactoMineR)
+options(scipen=999)
+```
+
+### This is part 2 of Cluster Analysis, we will now use mixed data types to generate clusters
+
+
+### Run an example of cluster analysis using FAMD
+### Step1: FAMD
+```{r}
+#run_pca <- function(data_frame, pca_type, components)
+dfl_famd <- run_pca(dfz_FAMD, "FAMD", 22)
+```
+
+
+```{r}
+meth_list <- list("ward.D", "centroid","median")#, "average", "median", "centroid")
+dist_list <- list("minkowski","maximum")#,"canberra")
+bclist <- list()
+# loop 
+for (m in meth_list) {
+  for (d in dist_list){
+    best_cluster <- fun_nc(dfl_famd, d, 2, 5, m)
+    #bclist  <- c(bclist, best_cluster)
+    bclist[[length(bclist) + 1]] <- best_cluster
+  }
+}
+```
+
+Step 4: Execute the cluserting using dfl_FAMD
+```{r}
+#fun_clust <- function(data_frame, distance, agglo_method, clusters)
+famd_min_cen_c <- fun_clust(dfl_famd, "minkowski", "ward.D", 4)
+```
+
+Evaluate Clusters
+```{r}
+table(famd_min_cen_c)
+```
+
+```{r}
+tmp_data <- zdata
+tmp_data$cluster <-famd_min_cen_c
+tmp_data$cluster <- as.factor(tmp_data$cluster)
+p <- ggplot(tmp_data, aes(x=cluster, y=rentZestimate)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=Sch_Rat_Avg)) + 
+  geom_boxplot()
+q
+p <- ggplot(tmp_data, aes(x=cluster, y=Income_per_return)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=violent_crime_total_rate)) + 
+  geom_boxplot()
+q
+
+```
+
+### Step 5: Save the data to a file for exploratory analysis
+```{r}
+tmp_data$ClusterCategory <- ifelse(tmp_data$cluster == 1, "Cluster 1",
+                              ifelse(tmp_data$cluster == 2, "Cluster 2",
+                                     ifelse(tmp_data$cluster == 3, "Cluster 3",
+                                            ifelse(tmp_data$cluster == 4, "Cluster 4",
+                                     "Cluster 5"))))
+
+write.csv(tmp_data,"cluster_output4.csv", row.names = FALSE)
+```
+
+Remove the temporary dataset
+```{r}
+rm(tmp_data)
+```
+
+### Extra evaluation using gower distance and PAM 
+
+```{r}
+
+gower_dist <- cluster::daisy(dfl_famd, metric = "gower")
+```
+
+```{r}
+set.seed(123)
+pam_cluster <- cluster::pam(gower_dist, k = 3)
+
+table(pam_cluster$clustering)
+```
+
+
+```{r}
+tmp_data <- zdata
+tmp_data$cluster <-pam_cluster$clustering
+tmp_data$cluster <- as.factor(tmp_data$cluster)
+p <- ggplot(tmp_data, aes(x=cluster, y=livingArea)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=Sch_Rat_Avg)) + 
+  geom_boxplot()
+q
+p <- ggplot(tmp_data, aes(x=cluster, y=Income_per_return)) + 
+  geom_boxplot()
+p
+q <- ggplot(tmp_data, aes(x=cluster, y=violent_crime_total_rate)) + 
+  geom_boxplot()
+q
+
+```
+
+*** End of Part 2 ***
