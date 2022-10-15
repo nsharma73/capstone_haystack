@@ -194,7 +194,7 @@ fun_clust <- function(data_frame, distance, agglo_method, clusters) {
 Step 4: Execute the cluserting using dfn_pca
 ```{r}
 #fun_clust <- function(data_frame, distance, agglo_method, clusters)
-pca_max_ward_num <- fun_clust(dfn_pca, "maximum", "ward.D", 4)
+pca_max_ward_num <- fun_clust(dfn_pca, "maximum", "ward.D", 5)
 ```
 
 Evaluate Clusters
@@ -202,6 +202,7 @@ Evaluate Clusters
 table(pca_max_ward_num)
 ```
 ```{r}
+library(ggplot2)
 tmp_data <- zdata
 tmp_data$cluster <-pca_max_ward_num
 tmp_data$cluster <- as.factor(tmp_data$cluster)
@@ -228,14 +229,45 @@ tmp_data$ClusterCategory <- ifelse(tmp_data$cluster == 1, "Cluster 1",
                                             ifelse(tmp_data$cluster == 4, "Cluster 4",
                                      "Cluster 5"))))
 
-write.csv(tmp_data,"cluster_output1.csv", row.names = FALSE)
 ```
 
-Remove the temporary dataset
+### We will add autoencoder results to the 5 clusters as part of anamoly detection
+```{r}
+library("h2o")
+h2o.init()
+
+```
+
+
+```{r}
+model=h2o.deeplearning(1:10,
+                  training_frame=as.h2o(dfn_pca),
+                  hidden=c(10,5,10),
+                  epochs = 100,
+                  autoencoder = T,
+                  activation="Tanh")
+summary(model)
+```
+
+
+```{r}
+pred.oc <- as.data.frame(h2o.anomaly(model, as.h2o(dfn_pca)))
+head(pred.oc)
+```
+
+```{r}
+tmp_data$ae_mse <-pred.oc$Reconstruction.MSE
+```
+
+### Export data to csv
+```{r}
+write.csv(tmp_data,"cluster_output_5cls.csv", row.names = FALSE)
+```
+
+### Remove the temporary dataset
 ```{r}
 rm(tmp_data)
 ```
-
 
 ### Extra evaluation using Random Forest and PAM
 
@@ -260,6 +292,7 @@ pam_rf <- cluster::pam(rf_dist, k = 3)
 table(pam_rf$clustering)
 ```
 ```{r}
+library(ggplot2)
 tmp_data <- zdata
 tmp_data$cluster <-pam_rf$clustering
 tmp_data$cluster <- as.factor(tmp_data$cluster)
