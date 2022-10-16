@@ -182,7 +182,7 @@ fun_clust <- function(data_frame, distance, agglo_method, clusters) {
   # Plotting a dendogram
   dend_complete <- as.dendrogram(hc_complete)
   dend1 <- dendextend::color_branches(dend_complete, k = 3)
-  plot(dend1, main = "Complete-Linkage")
+  plot(dend1, main = "Hierarchical Clustering using PCA")
   
   clusters <- cutree(hc_complete, clusters)
   cluster_dist <- table(clusters)
@@ -209,15 +209,15 @@ tmp_data$cluster <- as.factor(tmp_data$cluster)
 p <- ggplot(tmp_data, aes(x=cluster, y=rentZestimate)) + 
   geom_boxplot()
 p
-q <- ggplot(tmp_data, aes(x=cluster, y=Sch_Rat_Avg)) + 
+p <- ggplot(tmp_data, aes(x=cluster, y=Sch_Rat_Avg)) + 
   geom_boxplot()
-q
+p
 p <- ggplot(tmp_data, aes(x=cluster, y=Income_per_return)) + 
   geom_boxplot()
 p
-q <- ggplot(tmp_data, aes(x=cluster, y=violent_crime_total_rate)) + 
+p <- ggplot(tmp_data, aes(x=cluster, y=violent_crime_total_rate)) + 
   geom_boxplot()
-q
+p
 
 ```
 
