@@ -14,12 +14,12 @@ ui <- fluidPage(
   tags$h1("Clusters On Georgia Map"),
   fluidRow(
     column(
-      width = 12,
+      width = 3,
       selectInput(inputId = "inputClusterNumber", label = "Select cluster:", multiple = TRUE, choices = sort(clusters$ClusterNumber),
                   selected = "1")
     ),
     column(
-      width = 12,
+      width = 9,
       google_mapOutput(outputId = "map")
     )
   )
