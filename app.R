@@ -8,7 +8,7 @@ library(googleway)
 
 
 api_key <- "input your keys"
-clusters <-read.csv(file = '~/Desktop/Bootcamp/Capstone Project /Georgia_Clusters_final/cluster_output_5cls.csv', stringsAsFactors = F)
+clusters <-read.csv(file = 'cluster_output_5cls.csv', stringsAsFactors = F)
 
 
 
